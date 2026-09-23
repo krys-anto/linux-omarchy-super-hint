@@ -1,0 +1,183 @@
+#!/bin/bash
+# Emits the grouped-shortcut JSON payload consumed by the kirality.super-hint
+# overlay plugin. Reads live from `hyprctl binds -j` so the displayed keys
+# always match the user's actual current bindings.
+#
+# Extra modifier names currently held (besides Super), e.g. SHIFT or ALT
+# CTRL, are passed as positional args. With none, shows the curated
+# Apps/Windows/Workspaces/System highlight view (bare Super is the common
+# case and has too many real bindings -- 30+ -- to dump unfiltered). With
+# any given, shows every real binding for that exact modifier combination
+# instead -- those combos have far fewer bindings each (4-31), small enough
+# to show in full rather than curate.
+set -euo pipefail
+
+binds=$(hyprctl binds -j)
+held_mods_json=$(printf '%s\n' "$@" | jq -Rnc '[inputs | select(length > 0)]')
+
+# The Lua side (super-hint.lua) remembers the last non-modifier key pressed
+# while the hint was open, as a raw XKB keycode -- it never binds/reads
+# descriptions itself, just observes. Resolve that keycode back to a symbol
+# here the same way the packaged omarchy-menu-keybindings script does (via
+# xkbcli compile-keymap), so this stays correct for any keyboard layout
+# instead of a hardcoded QWERTY table.
+# This is a nice-to-have lookup on top of an external state file this
+# script doesn't control the format of -- any failure here (missing
+# trailing newline, corrupt content, xkbcli hiccup) must never take down
+# the whole hint, so it's fully isolated from set -e via `|| true` and
+# explicit fallbacks rather than letting a failure abort the script.
+last_key_symbol=""
+last_key_mods_json="[]"
+last_key_file=~/.cache/super-hint-last-key
+if [[ -s "$last_key_file" ]]; then
+  last_keycode=$(cut -f1 "$last_key_file" 2>/dev/null || true)
+  last_mods_raw=$(cut -f2 "$last_key_file" 2>/dev/null || true)
+  if [[ "${last_keycode:-}" =~ ^[0-9]+$ ]]; then
+    last_key_symbol=$(awk -v target="$last_keycode" '
+      BEGIN {
+        keymap_cmd = "xkbcli compile-keymap </dev/null"
+        section = ""
+        while ((keymap_cmd | getline line) > 0) {
+          if (line ~ /xkb_keycodes/) { section = "codes"; continue }
+          if (line ~ /xkb_symbols/)  { section = "syms";  continue }
+          if (section == "codes" && match(line, /<([A-Za-z0-9_]+)>\s*=\s*([0-9]+)\s*;/, m)) code_by_name[m[1]] = m[2]
+          if (section == "syms" && match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) sym_by_name[m[1]] = m[2]
+        }
+        close(keymap_cmd)
+        for (name in code_by_name) {
+          if (code_by_name[name] == target) {
+            symbol = sym_by_name[name]
+            if (symbol != "" && symbol != "NoSymbol") print toupper(symbol)
+            exit
+          }
+        }
+      }
+    ' 2>/dev/null || true)
+    last_key_mods_json=$(printf '%s\n' $last_mods_raw | jq -Rnc '[inputs | select(length > 0)]' 2>/dev/null || echo "[]")
+  fi
+fi
+
+jq -nc --argjson binds "$binds" --argjson heldMods "$held_mods_json" \
+       --arg lastKeySymbol "$last_key_symbol" --argjson lastKeyMods "$last_key_mods_json" '
+  def mods_of(m):
+    [ (if ((m/1|floor) % 2 == 1) then "SHIFT" else empty end),
+      (if ((m/4|floor) % 2 == 1) then "CTRL"  else empty end),
+      (if ((m/8|floor) % 2 == 1) then "ALT"   else empty end) ];
+
+  def modbit(name):
+    if   name == "SHIFT" then 1
+    elif name == "CTRL"  then 4
+    elif name == "ALT"   then 8
+    else 0 end;
+
+  def keylabel(k):
+    if   k == "RETURN" then "↵"
+    elif k == "SPACE"  then "SPACE"
+    elif k == "ESCAPE" then "ESC"
+    elif k == "TAB"    then "⇥"
+    else k end;
+
+  # Best-effort keyword classifier so the dynamic (non-curated) views use
+  # the same section headers as the curated bare-Super view. Not perfect --
+  # a handful of descriptions could reasonably land in more than one
+  # bucket -- but keeps every view speaking the same visual language.
+  def category_of(desc):
+    if   (desc | test("workspace"; "i")) then "Workspaces"
+    elif (desc | test("window|\\bscreen\\b|group|split|float|tiling|width"; "i")) then "Windows"
+    elif (desc | test("menu|toggle|lock|power|reminder|notification|screenshot|capture|clipboard|zoom|monitor|display|dictation|idle|nightlight|transcode|scaling|battery|weather|\\btime\\b|silenc|laptop"; "i")) then "System"
+    else "Apps"
+    end;
+
+  ($binds | map(select(.has_description and (.mouse|not) and .key != ""))) as $live |
+
+  # description -> row label, keyed by exact `description` text from
+  # `hyprctl binds -j` right now. If a description disappears (rebound or
+  # removed by the user), that row is silently skipped rather than erroring.
+  # Order here is display order.
+  def curated:
+    [
+      { name: "Apps", rows: [
+        {"desc": "Terminal",       "label": "Terminal", "detail": "Opens your default terminal app"},
+        {"desc": "Browser",        "label": "Browser",  "detail": "Opens your default browser"},
+        {"desc": "Editor",         "label": "Editor",   "detail": "Opens your default code editor"},
+        {"desc": "File manager",   "label": "Files",    "detail": "Opens the Nautilus file manager"}
+      ]},
+      { name: "Windows", rows: [
+        {"desc": "Close window",                  "label": "Close",      "detail": "Closes the focused window"},
+        {"desc": "Toggle window floating/tiling", "label": "Float",      "detail": "Switches the window between floating and tiled"},
+        {"desc": "Full screen",                   "label": "Fullscreen", "detail": "Hides the bar and borders for the focused window"},
+        {"desc": "Toggle window split",            "label": "Split",      "detail": "Flips horizontal/vertical split for the focused window"},
+        {"desc": "Toggle workspace layout",        "label": "Layout",     "detail": "Switches between dwindle (spiral split) and master (main window + stack)"}
+      ]},
+      { name: "System", rows: [
+        {"desc": "Lock system",  "label": "Lock",          "detail": "Locks the screen"},
+        {"desc": "Power",        "label": "Power",         "detail": "Opens the power menu"},
+        {"desc": "Keybindings",  "label": "All shortcuts", "detail": "Opens the full searchable shortcut list", "highlight": true}
+      ]}
+    ];
+
+  (curated | map({
+      name: .name,
+      items: [ .rows[] as $row |
+        ($live | map(select(.description == $row.desc))) as $matches |
+        # Prefer a single-letter mnemonic key over RETURN/SPACE/etc. when a
+        # description has more than one live binding (e.g. "Browser" bound
+        # to both B and RETURN) — more legible in a keycap hint.
+        (($matches | map(select(.key | test("^[A-Za-z]$"))) | first) // ($matches | first)) as $b |
+        select($b != null) |
+        {
+          mods: mods_of($b.modmask),
+          key: keylabel($b.key),
+          label: $row.label,
+          highlight: ($row.highlight // false)
+        }
+      ]
+    } | select(.items | length > 0))
+  ) as $curated_categories |
+
+  ($curated_categories[0:2]
+    + [{
+        name: "Workspaces",
+        items: [
+          {mods: [], key: "1‑9", label: "Switch to", highlight: false},
+          {mods: ["SHIFT"], key: "1‑9", label: "Move window", highlight: false}
+        ]
+      }]
+    + $curated_categories[2:]
+  ) as $curated_ordered |
+
+  (64 + ($heldMods | map(modbit(.)) | add // 0)) as $target_modmask |
+  ($live
+    | map(select(.modmask == $target_modmask))
+    | sort_by(.description)
+    # Every row here shares the exact same modmask by construction, and
+    # those mods are already shown once in the held-keys readout above the
+    # list -- repeating them on every single row is pure noise, so dynamic
+    # rows show only the final key, not the mod prefix (frees up width for
+    # the label too).
+    | map({ mods: [], key: keylabel(.key), label: .description, highlight: false, cat: category_of(.description) })
+  ) as $dynamic_tagged |
+  ([ ["Apps", "Windows", "Workspaces", "System"][] as $catname |
+     { name: $catname, items: ($dynamic_tagged | map(select(.cat == $catname)) | map(del(.cat))) }
+   ] | map(select(.items | length > 0))
+  ) as $dynamic_categories |
+
+  ([curated[].rows[]] | map({(.desc): {label: .label, detail: (.detail // "")}}) | add // {}) as $curated_by_desc |
+
+  (if $lastKeySymbol != "" then
+     (64 + ($lastKeyMods | map(modbit(.)) | add // 0)) as $last_modmask |
+     ($live | map(select(.key == $lastKeySymbol and .modmask == $last_modmask)) | first) as $lb |
+     ($curated_by_desc[$lb.description // ""]) as $curated_match |
+     (if $lb != null then
+        { mods: mods_of($lb.modmask), key: keylabel($lb.key),
+          label: ($curated_match.label // $lb.description),
+          detail: ($curated_match.detail // "") }
+      else null end)
+   else null end
+  ) as $lastAction |
+
+  if ($heldMods | length) > 0
+  then { categories: $dynamic_categories, heldMods: $heldMods, lastAction: $lastAction }
+  else { categories: $curated_ordered, heldMods: $heldMods, lastAction: $lastAction }
+  end
+'

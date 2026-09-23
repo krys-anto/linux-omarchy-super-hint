@@ -1,0 +1,24 @@
+#!/bin/bash
+# See omarchy-super-hint-show for what SUPER_HINT_SEQ / the sequence file
+# check is for, and why there's a post-action reconciliation against
+# hyprctl's ground truth too (the pre-check alone isn't sufficient against
+# a slow IPC call finishing later than its sequence number would suggest).
+log=~/.cache/super-hint-debug.log
+seq_file=~/.cache/super-hint-seq
+my_seq="${SUPER_HINT_SEQ:-0}"
+latest_seq=$(cat "$seq_file" 2>/dev/null || echo 0)
+
+if [[ "$latest_seq" -gt "$my_seq" ]]; then
+  echo "$(date +%H:%M:%S) hide SKIP (stale) pid=$$ my_seq=$my_seq latest=$latest_seq" >> "$log"
+  exit 0
+fi
+
+echo "$(date +%H:%M:%S) hide START pid=$$ seq=$my_seq" >> "$log"
+omarchy-shell shell hide kirality.super-hint
+echo "$(date +%H:%M:%S) hide END   pid=$$ seq=$my_seq" >> "$log"
+
+current_submap=$(hyprctl submap 2>/dev/null || echo "")
+if [[ "$current_submap" == "super_hint" ]]; then
+  echo "$(date +%H:%M:%S) hide RECONCILE pid=$$ seq=$my_seq: submap is 'super_hint' again, correcting to shown" >> "$log"
+  omarchy-shell shell summon kirality.super-hint "$(omarchy-super-hint-data)" >/dev/null 2>&1
+fi

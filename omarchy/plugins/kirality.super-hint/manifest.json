@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "kirality.super-hint",
+  "name": "Super Hint",
+  "version": "1.0.0",
+  "author": "kirality",
+  "description": "Shows a grouped shortcut HUD while the Super key is held",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "SuperHint.qml"
+  }
+}

@@ -1,0 +1,33 @@
+#!/bin/bash
+# Summons the super-hint overlay with fresh, live keybinding data. Any args
+# (extra held modifier names, e.g. ALT CTRL) are forwarded so the overlay
+# can show a live "what's currently pressed" readout.
+#
+# SUPER_HINT_SEQ (set by the caller) is checked against the shared sequence
+# file before acting: if a later call has already been issued, this one is
+# stale and skips itself. That alone isn't sufficient though -- confirmed
+# live: a show that passes this check can still have its own IPC call take
+# long enough that a LATER hide fires and finishes first, so the show's
+# slow-but-technically-non-stale-at-the-time completion still lands last
+# and silently reopens the overlay. So after acting, this re-checks against
+# hyprctl's own ground truth (fast, local, independent of our sequence
+# bookkeeping) and corrects itself if reality has since diverged.
+log=~/.cache/super-hint-debug.log
+seq_file=~/.cache/super-hint-seq
+my_seq="${SUPER_HINT_SEQ:-0}"
+latest_seq=$(cat "$seq_file" 2>/dev/null || echo 0)
+
+if [[ "$latest_seq" -gt "$my_seq" ]]; then
+  echo "$(date +%H:%M:%S) show SKIP (stale) pid=$$ my_seq=$my_seq latest=$latest_seq args=[$*]" >> "$log"
+  exit 0
+fi
+
+echo "$(date +%H:%M:%S) show START pid=$$ seq=$my_seq args=[$*]" >> "$log"
+omarchy-shell shell summon kirality.super-hint "$(omarchy-super-hint-data "$@")"
+echo "$(date +%H:%M:%S) show END   pid=$$ seq=$my_seq args=[$*]" >> "$log"
+
+current_submap=$(hyprctl submap 2>/dev/null || echo "")
+if [[ "$current_submap" != "super_hint" ]]; then
+  echo "$(date +%H:%M:%S) show RECONCILE pid=$$ seq=$my_seq: submap now '$current_submap', correcting to hidden" >> "$log"
+  omarchy-shell shell hide kirality.super-hint >/dev/null 2>&1
+fi
