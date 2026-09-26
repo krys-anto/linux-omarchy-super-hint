@@ -170,6 +170,16 @@ hl.on("input.keyboard.key", function(keycode, _timestamp, state)
       f:write(tostring(keycode) .. "\t" .. held_mods_args() .. "\n")
       f:close()
     end
+
+    -- A real key was pressed, so the user already knows what they want --
+    -- dismiss the hint even though Super is still held (e.g. holding Super
+    -- and tapping Left repeatedly). Leaving the submap is enough: the
+    -- keybinds.submap handler fires the hide, and every real bind is
+    -- submap_universal so it works the same in the default submap. The
+    -- hint won't come back until Super itself is pressed again.
+    log("non-modifier key while hint open -> DISPATCHING RESET")
+    hl.dispatch(hl.dsp.submap("reset"))
+    return
   end
 
   exit_if_super_released("other-key")
