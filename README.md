@@ -36,6 +36,50 @@ automate, since they touch config files that already carry your own content:
 
 Reload Hyprland afterwards.
 
+## Managing it through Omarchy
+
+The symlinked install is a first-class citizen of Omarchy's own plugin
+manager -- the plugin shows up in `omarchy plugin list` as a third-party
+`overlay`, and `omarchy menu plugin` lists it for enable/disable/remove:
+
+```sh
+omarchy plugin list | grep super-hint
+# kirality.super-hint   enabled   third-party   overlay   Super Hint
+
+omarchy plugin disable kirality.super-hint   # keep it installed, stop loading it
+omarchy plugin enable  kirality.super-hint
+omarchy plugin remove  kirality.super-hint   # unlinks the symlink, repo untouched
+```
+
+Two things to know:
+
+- `omarchy plugin remove` handles the symlink correctly (it unlinks rather
+  than deleting, so this repo is never touched) and disables the plugin in
+  `shell.json` on the way out. But it only knows about the plugin folder --
+  the `hypr/` and `~/.local/bin` links and the `hyprland.lua` requires are
+  outside its remit. Use `./uninstall.sh` to remove the whole install.
+- `omarchy plugin update` does **not** apply here. It requires the plugin
+  folder itself to be a git checkout, and ours is a subdirectory of this
+  repo. `git pull` in this repo is the update path; the symlinks mean that
+  is all it takes.
+
+## Uninstall
+
+```sh
+./uninstall.sh
+```
+
+It unlinks the plugin through `omarchy plugin remove` (so `shell.json` is
+cleaned up and the shell unloads it), then drops the `hypr/` and
+`~/.local/bin` symlinks. Only symlinks pointing back into this repo are
+touched, so it can never delete a hand-written file or a link to another
+checkout.
+
+It leaves one manual step, mirroring the install: delete the two `require`
+lines from `~/.config/hypr/hyprland.lua`. Do that **before** the next
+Hyprland reload -- requiring a module whose file is gone makes the whole
+config fail to load.
+
 ## Known issues
 
 - Key events fire through the Lua handler twice per physical press/release

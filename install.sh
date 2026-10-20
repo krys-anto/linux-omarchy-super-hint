@@ -37,3 +37,5 @@ echo "2. In ~/.config/omarchy/shell.json, add this to the \"plugins\" array:"
 echo '     { "id": "kirality.super-hint" }'
 echo
 echo "Then reload Hyprland (or log out/in) for the submap binds and plugin to take effect."
+echo
+echo "To undo all of this later: ./uninstall.sh"
