@@ -31,8 +31,8 @@ automate, since they touch config files that already carry your own content:
 
 1. Add `require("hypr.super-hint-patch")` (before Omarchy's own defaults
    load) and `require("hypr.super-hint")` to `~/.config/hypr/hyprland.lua`.
-2. Add `{ "id": "kirality.super-hint" }` to the `plugins` array in
-   `~/.config/omarchy/shell.json`.
+2. Run `omarchy plugin enable kirality.super-hint`, which writes the
+   `plugins` entry in `~/.config/omarchy/shell.json` for you.
 
 Reload Hyprland afterwards.
 

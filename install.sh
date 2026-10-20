@@ -25,6 +25,15 @@ link "$repo_dir/bin/omarchy-super-hint-data" ~/.local/bin/omarchy-super-hint-dat
 link "$repo_dir/bin/omarchy-super-hint-show" ~/.local/bin/omarchy-super-hint-show
 link "$repo_dir/bin/omarchy-super-hint-hide" ~/.local/bin/omarchy-super-hint-hide
 
+# Tell the running shell to pick up the newly linked plugin directory. Without
+# this, the plugin does not exist as far as omarchy-shell is concerned yet, so
+# `omarchy plugin enable` below fails with "plugin is not known" -- linking the
+# folder alone is not discovery.
+if command -v omarchy-shell >/dev/null 2>&1; then
+  omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
+  echo "rescanned: omarchy-shell now sees kirality.super-hint"
+fi
+
 echo
 echo "Files linked. Two manual steps remain (not automated -- they edit"
 echo "personal config that already has your own content in it):"
@@ -33,7 +42,10 @@ echo "1. In ~/.config/hypr/hyprland.lua, add:"
 echo '     require("hypr.super-hint-patch")   -- BEFORE require("default.hypr.omarchy")'
 echo '     require("hypr.super-hint")         -- anywhere after the omarchy defaults load'
 echo
-echo "2. In ~/.config/omarchy/shell.json, add this to the \"plugins\" array:"
-echo '     { "id": "kirality.super-hint" }'
+echo "2. Enable the plugin:"
+echo "     omarchy plugin enable kirality.super-hint"
+echo
+echo "   (That writes the \"plugins\" entry in ~/.config/omarchy/shell.json for you."
+echo "   Adding { \"id\": \"kirality.super-hint\" } there by hand does the same thing.)"
 echo
 echo "Then reload Hyprland (or log out/in) for the submap binds and plugin to take effect."
