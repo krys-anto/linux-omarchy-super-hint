@@ -3,6 +3,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Item {
@@ -16,11 +17,11 @@ Item {
   property var heldMods: []
   property var lastAction: null
 
-  property color background: Color.menu.background
-  property color foreground: Color.menu.text
-  property color border: Color.menu.border
+  property color background: Commons.Color.menu.background
+  property color foreground: Commons.Color.menu.text
+  property color border: Commons.Color.menu.border
   property var borderSpec: Border.surfaceSpec("menu", "border", border, Math.max(1, Style.space(2)))
-  property color scrim: Color.menu.scrim
+  property color scrim: Commons.Color.menu.scrim
   readonly property int cornerRadius: Style.cornerRadius
   property string fontFamily: Style.font.menuFamily
   property int contentMargin: Style.spacing.panelPadding
@@ -170,7 +171,7 @@ Item {
                   visible: heldRoot.index > 0
                   anchors.verticalCenter: parent.verticalCenter
                   text: "+"
-                  color: Color.accent
+                  color: Commons.Color.accent
                   opacity: 0.6
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -181,15 +182,15 @@ Item {
                   width: Math.max(Style.space(64), heldText.implicitWidth + Style.space(24))
                   height: Style.space(34)
                   radius: Style.space(9)
-                  color: Util.alpha(Color.accent, 0.18)
-                  border.color: Color.accent
+                  color: Util.alpha(Commons.Color.accent, 0.18)
+                  border.color: Commons.Color.accent
                   border.width: 1
 
                   Text {
                     id: heldText
                     anchors.centerIn: parent
                     text: heldRoot.modelData
-                    color: Color.accent
+                    color: Commons.Color.accent
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: true
@@ -226,7 +227,7 @@ Item {
 
               Text {
                 text: catCol.modelData.name.toUpperCase()
-                color: Color.accent
+                color: Commons.Color.accent
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
@@ -262,14 +263,14 @@ Item {
                         radius: Style.space(5)
                         color: Util.alpha(root.foreground, 0.06)
                         border.width: 1
-                        border.color: rowRoot.modelData.highlight ? Color.accent : root.border
+                        border.color: rowRoot.modelData.highlight ? Commons.Color.accent : root.border
                       }
 
                       Text {
                         id: keycapText
                         anchors.centerIn: parent
                         text: tokenRoot.modelData
-                        color: rowRoot.modelData.highlight ? Color.accent : root.foreground
+                        color: rowRoot.modelData.highlight ? Commons.Color.accent : root.foreground
                         font.family: root.fontFamily
                         font.pixelSize: Style.font.caption
                         font.bold: !tokenRoot.isPlus
@@ -283,7 +284,7 @@ Item {
                     width: Math.max(0, rowRoot.width - tokensRow.width - rowRoot.spacing)
                     elide: Text.ElideRight
                     text: rowRoot.modelData.label
-                    color: rowRoot.modelData.highlight ? Color.accent : root.foreground
+                    color: rowRoot.modelData.highlight ? Commons.Color.accent : root.foreground
                     opacity: rowRoot.modelData.highlight ? 1 : 0.85
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.bodySmall
